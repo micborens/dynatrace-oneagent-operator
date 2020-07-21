@@ -24,6 +24,12 @@ import (
 // +k8s:openapi-gen=true
 type OneAgentAPMSpec struct {
 	BaseOneAgentSpec `json:",inline"`
+
+	// OneAgent image
+	// +operator-sdk:gen-csv:customresourcedefinitions.specDescriptors=true
+	// +operator-sdk:gen-csv:customresourcedefinitions.specDescriptors.displayName="Image"
+	// +operator-sdk:gen-csv:customresourcedefinitions.specDescriptors.x-descriptors="urn:alm:descriptor:com.tectonic.ui:advanced,urn:alm:descriptor:com.tectonic.ui:text"
+	Image string `json:"image,omitempty"`
 }
 
 // OneAgentAPMStatus defines the observed state of OneAgentAPM

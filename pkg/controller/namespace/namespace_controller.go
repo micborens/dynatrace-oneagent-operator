@@ -196,42 +196,43 @@ archive=$(mktemp)
 
 if [[ "${INSTALLER_URL}" != "" ]]; then
 	installer_url="${INSTALLER_URL}"
-fi
 
-curl_params=(
-	"--silent"
-	"--output" "${archive}"
-	"${installer_url}"
-)
+    curl_params=(
+        "--silent"
+        "--output" "${archive}"
+        "${installer_url}"
+    )
 
-if [[ "${INSTALLER_URL}" == "" ]]; then
-	curl_params+=("--header" "Authorization: Api-Token ${paas_token}")
-fi
+    if [[ "${skip_cert_checks}" == "true" ]]; then
+        curl_params+=("--insecure")
+    fi
 
-if [[ "${skip_cert_checks}" == "true" ]]; then
-	curl_params+=("--insecure")
-fi
+    if [[ "${custom_ca}" == "true" ]]; then
+        curl_params+=("--cacert" "${config_dir}/ca.pem")
+    fi
 
-if [[ "${custom_ca}" == "true" ]]; then
-	curl_params+=("--cacert" "${config_dir}/ca.pem")
-fi
+    if [[ "${proxy}" != "" ]]; then
+        curl_params+=("--proxy" "${proxy}")
+    fi
 
-if [[ "${proxy}" != "" ]]; then
-	curl_params+=("--proxy" "${proxy}")
-fi
+    echo "Downloading OneAgent package..."
+    if ! curl "${curl_params[@]}"; then
+        echo "Failed to download the OneAgent package."
+        exit 0
+    fi
 
-echo "Downloading OneAgent package..."
-if ! curl "${curl_params[@]}"; then
-	echo "Failed to download the OneAgent package."
-	exit 0
+    echo "Unpacking OneAgent package..."
+    if ! unzip -o -d "${target_dir}" "${archive}"; then
+        echo "Failed to unpack the OneAgent package."
+        exit 0
+    fi
+    rm -f "${archive}"
+else
+    echo "Copy OneAgent package..."
+    if ! cp "/opt/dynatrace/oneagent" "${target_dir}"; then
+        echo "Failed to copy the OneAgent package."
+        exit 0
 fi
-
-echo "Unpacking OneAgent package..."
-if ! unzip -o -d "${target_dir}" "${archive}"; then
-	echo "Failed to unpack the OneAgent package."
-	exit 0
-fi
-rm -f "${archive}"
 
 echo "Configuring OneAgent..."
 echo -n "${INSTALLPATH}/agent/lib64/liboneagentproc.so" >> "${target_dir}/ld.so.preload"

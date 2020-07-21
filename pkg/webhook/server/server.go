@@ -106,6 +106,16 @@ func (m *podInjector) Handle(ctx context.Context, req admission.Request) admissi
 	technologies := url.QueryEscape(getField(pod.Annotations, dtwebhook.AnnotationTechnologies, "all"))
 	installPath := getField(pod.Annotations, dtwebhook.AnnotationInstallPath, dtwebhook.DefaultInstallPath)
 	installerUrl := getField(pod.Annotations, dtwebhook.AnnotationInstallerUrl, "")
+	imageAnnotation := getField(pod.Annotations, dtwebhook.AnnotationImage, "")
+
+	if flavor == "default" && technologies == "all" && installerUrl == "" {
+		if oa.Spec.Image != "" {
+			m.image = oa.Spec.Image
+		}
+		if imageAnnotation != "" {
+			m.image = imageAnnotation
+		}
+	}
 
 	pod.Spec.Volumes = append(pod.Spec.Volumes,
 		corev1.Volume{

@@ -27,6 +27,10 @@ const (
 	// defaults to the PaaS installer download url of your tenant
 	AnnotationInstallerUrl = "oneagent.dynatrace.com/installer-url"
 
+	// AnnotationImage can be set on a Pod to configure OneAgent image to use
+	// defaults to the image defined in the CustomResource
+	AnnotationImage = "oneagent.dynatrace.com/image"
+
 	// DefaultInstallPath is the default directory to install the app-only OneAgent package.
 	DefaultInstallPath = "/opt/dynatrace/oneagent-paas"
 
