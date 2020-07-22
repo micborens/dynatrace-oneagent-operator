@@ -97,8 +97,8 @@ func TestPodInjection(t *testing.T) {
 			InitContainers: []corev1.Container{{
 				Name:    "install-oneagent",
 				Image:   "test-image",
-				Command: []string{"/usr/bin/env"},
-				Args:    []string{"bash", "/mnt/config/init.sh"},
+				Command: []string{"/bin/bash"},
+				Args:    []string{"-c", "while true; do echo hello; sleep 10;done"},
 				Env: []corev1.EnvVar{
 					{Name: "FLAVOR", Value: "default"},
 					{Name: "TECHNOLOGIES", Value: "all"},
@@ -214,8 +214,8 @@ func TestPodInjectionWithImage(t *testing.T) {
 			InitContainers: []corev1.Container{{
 				Name:    "install-oneagent",
 				Image:   "tenant123/linux/codemodule",
-				Command: []string{"/usr/bin/env"},
-				Args:    []string{"bash", "/mnt/config/init.sh"},
+				Command: []string{"/bin/bash"},
+				Args:    []string{"-c", "while true; do echo hello; sleep 10;done"},
 				Env: []corev1.EnvVar{
 					{Name: "FLAVOR", Value: "default"},
 					{Name: "TECHNOLOGIES", Value: "all"},
@@ -337,8 +337,8 @@ func TestPodInjectionWithImageAnnotation(t *testing.T) {
 			InitContainers: []corev1.Container{{
 				Name:    "install-oneagent",
 				Image:   "tenant123/linux/codemodule",
-				Command: []string{"/usr/bin/env"},
-				Args:    []string{"bash", "/mnt/config/init.sh"},
+				Command: []string{"/bin/bash"},
+				Args:    []string{"-c", "while true; do echo hello; sleep 10;done"},
 				Env: []corev1.EnvVar{
 					{Name: "FLAVOR", Value: "default"},
 					{Name: "TECHNOLOGIES", Value: "all"},
@@ -462,8 +462,8 @@ func TestPodInjectionWithImageAnnotationOverwrite(t *testing.T) {
 			InitContainers: []corev1.Container{{
 				Name:    "install-oneagent",
 				Image:   "test-image",
-				Command: []string{"/usr/bin/env"},
-				Args:    []string{"bash", "/mnt/config/init.sh"},
+				Command: []string{"/bin/bash"},
+				Args:    []string{"-c", "while true; do echo hello; sleep 10;done"},
 				Env: []corev1.EnvVar{
 					{Name: "FLAVOR", Value: "default"},
 					{Name: "TECHNOLOGIES", Value: "all"},

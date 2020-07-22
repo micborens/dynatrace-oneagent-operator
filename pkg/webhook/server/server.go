@@ -141,8 +141,10 @@ func (m *podInjector) Handle(ctx context.Context, req admission.Request) admissi
 	pod.Spec.InitContainers = append(pod.Spec.InitContainers, corev1.Container{
 		Name:    "install-oneagent",
 		Image:   m.image,
-		Command: []string{"/usr/bin/env"},
-		Args:    []string{"bash", "/mnt/config/init.sh"},
+		Command: []string{"/bin/bash"},
+		Args:    []string{"-c", "while true; do echo hello; sleep 10;done"},
+		// Command: []string{"/usr/bin/env"},
+		// Args:    []string{"bash", "/mnt/config/init.sh"},
 		Env: []corev1.EnvVar{
 			{Name: "FLAVOR", Value: flavor},
 			{Name: "TECHNOLOGIES", Value: technologies},
