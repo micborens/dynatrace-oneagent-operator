@@ -38,7 +38,7 @@ func TestReadCommunicationHosts(t *testing.T) {
 		logger: logf.ZapLoggerTo(os.Stdout, true),
 	}
 
-	readFromString := func(json string) (*ConnectionInfo, error) {
+	readFromString := func(json string) (ConnectionInfo, error) {
 		r := []byte(json)
 		return dc.readResponseForConnectionInfo(r)
 	}

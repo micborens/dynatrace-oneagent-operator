@@ -8,6 +8,7 @@ import (
 	"strconv"
 )
 
+// ConnectionInfo => struct of TenantUUID and CommunicationHosts
 type ConnectionInfo struct {
 	CommunicationHosts []CommunicationHost
 	TenantUUID         string
@@ -24,23 +25,23 @@ func (dc *dynatraceClient) GetCommunicationHostForClient() (CommunicationHost, e
 	return dc.parseEndpoint(dc.url)
 }
 
-func (dc *dynatraceClient) GetConnectionInfo() (*ConnectionInfo, error) {
+func (dc *dynatraceClient) GetConnectionInfo() (ConnectionInfo, error) {
 	var url string = fmt.Sprintf("%s/v1/deployment/installer/agent/connectioninfo", dc.url)
 	resp, err := dc.makeRequest(url, dynatracePaaSToken)
 	if err != nil {
-		return nil, err
+		return ConnectionInfo{}, err
 	}
 	defer resp.Body.Close()
 
 	responseData, err := dc.getServerResponseData(resp)
 	if err != nil {
-		return nil, err
+		return ConnectionInfo{}, err
 	}
 
 	return dc.readResponseForConnectionInfo(responseData)
 }
 
-func (dc *dynatraceClient) readResponseForConnectionInfo(response []byte) (*ConnectionInfo, error) {
+func (dc *dynatraceClient) readResponseForConnectionInfo(response []byte) (ConnectionInfo, error) {
 	type jsonResponse struct {
 		tenantUUID             string
 		CommunicationEndpoints []string
@@ -50,7 +51,7 @@ func (dc *dynatraceClient) readResponseForConnectionInfo(response []byte) (*Conn
 	err := json.Unmarshal(response, &resp)
 	if err != nil {
 		dc.logger.Error(err, "error unmarshalling json response")
-		return nil, err
+		return ConnectionInfo{}, err
 	}
 
 	t := resp.tenantUUID
@@ -68,7 +69,7 @@ func (dc *dynatraceClient) readResponseForConnectionInfo(response []byte) (*Conn
 	}
 
 	if len(ch) == 0 {
-		return nil, errors.New("no hosts available")
+		return ConnectionInfo{}, errors.New("no hosts available")
 	}
 
 	ci := ConnectionInfo{
@@ -76,7 +77,7 @@ func (dc *dynatraceClient) readResponseForConnectionInfo(response []byte) (*Conn
 		TenantUUID:         t,
 	}
 
-	return &ci, nil
+	return ci, nil
 }
 
 func (dc *dynatraceClient) parseEndpoint(s string) (CommunicationHost, error) {
