@@ -14,6 +14,10 @@ spec:
   # For managed it should look like `manged.com/e/tenantuuid/linux/codemodules`
   image: ""
 
+  # Always needs to be for custom container registries
+  # 
+  pullsecret: ""
+
   # Name of secret holding `paasToken`. If unset, name of custom resource is used.
   tokens: "oneagent"
 

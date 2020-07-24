@@ -55,6 +55,10 @@ spec:
               image:
                 description: OneAgent image
                 type: string
+              imagePullSecret:
+                description: 'Optional: The pull secret to get the oneagent image
+                  from your private registry'
+                type: string
               networkZone:
                 description: 'Optional: Adds the OneAgent to the given NetworkZone'
                 type: string
