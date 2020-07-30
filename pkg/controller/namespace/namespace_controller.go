@@ -5,8 +5,11 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
 	"text/template"
 	"time"
+
+	b64 "encoding/base64"
 
 	dynatracev1alpha1 "github.com/Dynatrace/dynatrace-oneagent-operator/pkg/apis/dynatrace/v1alpha1"
 	"github.com/Dynatrace/dynatrace-oneagent-operator/pkg/controller/utils"
@@ -32,10 +35,11 @@ func Add(mgr manager.Manager) error {
 	}
 
 	return add(mgr, &ReconcileNamespaces{
-		client:    mgr.GetClient(),
-		apiReader: mgr.GetAPIReader(),
-		namespace: ns,
-		logger:    log.Log.WithName("namespaces.controller"),
+		client:              mgr.GetClient(),
+		dynatraceClientFunc: utils.BuildDynatraceClient,
+		apiReader:           mgr.GetAPIReader(),
+		namespace:           ns,
+		logger:              log.Log.WithName("namespaces.controller"),
 	})
 }
 
@@ -56,10 +60,11 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 }
 
 type ReconcileNamespaces struct {
-	client    client.Client
-	apiReader client.Reader
-	logger    logr.Logger
-	namespace string
+	client              client.Client
+	dynatraceClientFunc utils.DynatraceClientFunc
+	apiReader           client.Reader
+	logger              logr.Logger
+	namespace           string
 }
 
 func (r *ReconcileNamespaces) Reconcile(request reconcile.Request) (reconcile.Result, error) {
@@ -86,7 +91,17 @@ func (r *ReconcileNamespaces) Reconcile(request reconcile.Request) (reconcile.Re
 		return reconcile.Result{}, nil
 	}
 
-	script, err := newScript(ctx, r.client, oaName, r.namespace)
+	var apm dynatracev1alpha1.OneAgentAPM
+	if err := r.client.Get(ctx, client.ObjectKey{Name: oaName, Namespace: r.namespace}, &apm); err != nil {
+		return reconcile.Result{}, fmt.Errorf("failed to query OneAgentAPM: %w", err)
+	}
+
+	var tkns corev1.Secret
+	if err := r.client.Get(ctx, client.ObjectKey{Name: utils.GetTokensName(&apm), Namespace: r.namespace}, &tkns); err != nil {
+		return reconcile.Result{}, fmt.Errorf("failed to query tokens: %w", err)
+	}
+
+	script, err := newScript(ctx, r.client, apm, tkns, r.namespace)
 	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("failed to generate init script: %w", err)
 	}
@@ -96,39 +111,81 @@ func (r *ReconcileNamespaces) Reconcile(request reconcile.Request) (reconcile.Re
 		return reconcile.Result{}, fmt.Errorf("failed to generate script: %w", err)
 	}
 
-	var cfg corev1.Secret
-
 	// The default cache-based Client doesn't support cross-namespace queries, unless configured to do so in Manager
 	// Options. However, this is our only use-case for it, so using the non-cached Client instead.
 
-	err = r.apiReader.Get(ctx, client.ObjectKey{Name: webhook.SecretConfigName, Namespace: targetNS}, &cfg)
+	err = r.CreateOrUpdateSecretIfNotExists(ctx, webhook.SecretConfigName, targetNS, data, corev1.SecretTypeOpaque, log)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if apm.Spec.CreateDynatracePullSecret == nil || *apm.Spec.CreateDynatracePullSecret == true {
+		pullSecretData, err := r.GeneratePullSecretData(apm, tkns)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		err = r.CreateOrUpdateSecretIfNotExists(ctx, webhook.PullSecretName, targetNS, pullSecretData, corev1.SecretTypeDockerConfigJson, log)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
+	return reconcile.Result{RequeueAfter: 5 * time.Minute}, nil
+}
+
+// GeneratePullSecretData generates the secret data for the PullSecret
+func (r *ReconcileNamespaces) GeneratePullSecretData(apm dynatracev1alpha1.OneAgentAPM, tkns corev1.Secret) (map[string][]byte, error) {
+	dtc, err := r.dynatraceClientFunc(r.client, &apm)
+	if err != nil {
+		return nil, err
+	}
+
+	ci, err := dtc.GetConnectionInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	regex, _ := regexp.Compile("(.*?)\\//linux")
+	registry := regex.FindString(apm.Spec.Image)
+	auth := fmt.Sprintf("%s:%s", ci.TenantUUID, string(tkns.Data[utils.DynatracePaasToken]))
+	auth = b64.StdEncoding.EncodeToString([]byte(auth))
+	dockercfg := fmt.Sprintf("{\"auths\":{\"%s\":{\"username\":\"%s\",\"password\":\"%s\",\"auth\":\"%s\"}}}", registry, ci.TenantUUID, string(tkns.Data[utils.DynatracePaasToken]), auth)
+
+	return map[string][]byte{".dockerconfigjson": []byte(dockercfg)}, nil
+}
+
+// CreateOrUpdateSecretIfNotExists creates a secret in case it does not exist or updates it if there are changes
+func (r *ReconcileNamespaces) CreateOrUpdateSecretIfNotExists(ctx context.Context, secretName string, targetNS string, data map[string][]byte, secretType corev1.SecretType, log logr.Logger) error {
+	var cfg corev1.Secret
+	err := r.apiReader.Get(ctx, client.ObjectKey{Name: secretName, Namespace: targetNS}, &cfg)
 	if errors.IsNotFound(err) {
 		log.Info("Creating OneAgent config secret")
 		if err := r.client.Create(ctx, &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      webhook.SecretConfigName,
+				Name:      secretName,
 				Namespace: targetNS,
 			},
+			Type: secretType,
 			Data: data,
 		}); err != nil {
-			return reconcile.Result{}, fmt.Errorf("failed to create config Secret: %w", err)
+			return fmt.Errorf("failed to create config Secret: %w", err)
 		}
-		return reconcile.Result{RequeueAfter: 5 * time.Minute}, nil
+		return nil
 	}
 
 	if err != nil {
-		return reconcile.Result{}, fmt.Errorf("failed to query for config Secret: %w", err)
+		return fmt.Errorf("failed to query for config Secret: %w", err)
 	}
 
 	if !reflect.DeepEqual(data, cfg.Data) {
 		log.Info("Updating OneAgent config secret")
 		cfg.Data = data
 		if err := r.client.Update(ctx, &cfg); err != nil {
-			return reconcile.Result{}, fmt.Errorf("failed to update config Secret: %w", err)
+			return fmt.Errorf("failed to update config Secret: %w", err)
 		}
 	}
 
-	return reconcile.Result{RequeueAfter: 5 * time.Minute}, nil
+	return nil
 }
 
 type script struct {
@@ -138,17 +195,7 @@ type script struct {
 	TrustedCAs []byte
 }
 
-func newScript(ctx context.Context, c client.Client, oaName, ns string) (*script, error) {
-	var apm dynatracev1alpha1.OneAgentAPM
-	if err := c.Get(ctx, client.ObjectKey{Name: oaName, Namespace: ns}, &apm); err != nil {
-		return nil, fmt.Errorf("failed to query OneAgentAPM: %w", err)
-	}
-
-	var tkns corev1.Secret
-	if err := c.Get(ctx, client.ObjectKey{Name: utils.GetTokensName(&apm), Namespace: ns}, &tkns); err != nil {
-		return nil, fmt.Errorf("failed to query tokens: %w", err)
-	}
-
+func newScript(ctx context.Context, c client.Client, apm dynatracev1alpha1.OneAgentAPM, tkns corev1.Secret, ns string) (*script, error) {
 	var proxy string
 	if apm.Spec.Proxy != nil {
 		if apm.Spec.Proxy.ValueFrom != "" {

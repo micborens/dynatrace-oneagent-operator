@@ -137,6 +137,11 @@ func TestPodInjection(t *testing.T) {
 					},
 				},
 			},
+			ImagePullSecrets: []corev1.LocalObjectReference{
+				{
+					Name: "dynatrace-oneagent-pull-secret",
+				},
+			},
 		},
 	}, updPod)
 }
@@ -252,6 +257,11 @@ func TestPodInjectionWithImage(t *testing.T) {
 							SecretName: dtwebhook.SecretConfigName,
 						},
 					},
+				},
+			},
+			ImagePullSecrets: []corev1.LocalObjectReference{
+				{
+					Name: "dynatrace-oneagent-pull-secret",
 				},
 			},
 		},
@@ -377,6 +387,11 @@ func TestPodInjectionWithImageAnnotation(t *testing.T) {
 					},
 				},
 			},
+			ImagePullSecrets: []corev1.LocalObjectReference{
+				{
+					Name: "dynatrace-oneagent-pull-secret",
+				},
+			},
 		},
 	}, updPod)
 }
@@ -500,6 +515,11 @@ func TestPodInjectionWithImageAnnotationOverwrite(t *testing.T) {
 							SecretName: dtwebhook.SecretConfigName,
 						},
 					},
+				},
+			},
+			ImagePullSecrets: []corev1.LocalObjectReference{
+				{
+					Name: "dynatrace-oneagent-pull-secret",
 				},
 			},
 		},

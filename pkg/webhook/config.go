@@ -37,6 +37,9 @@ const (
 	// SecretConfigName is the name of the secret where the Operator replicates the config data.
 	SecretConfigName = "dynatrace-oneagent-config"
 
+	// PullSecretName is the name of the pullsecret for getting the image from the Dynatrace environment
+	PullSecretName = "dynatrace-oneagent-pull-secret"
+
 	// SecretCertsName is the name of the secret where the webhook certificates are stored.
 	SecretCertsName = "dynatrace-oneagent-webhook-certs"
 

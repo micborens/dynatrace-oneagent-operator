@@ -2,21 +2,16 @@ package server
 
 import (
 	"context"
-	b64 "encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 
-	"regexp"
-
 	dynatracev1alpha1 "github.com/Dynatrace/dynatrace-oneagent-operator/pkg/apis/dynatrace/v1alpha1"
-	"github.com/Dynatrace/dynatrace-oneagent-operator/pkg/controller/utils"
 	dtwebhook "github.com/Dynatrace/dynatrace-oneagent-operator/pkg/webhook"
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -112,13 +107,14 @@ func (m *podInjector) Handle(ctx context.Context, req admission.Request) admissi
 	installPath := getField(pod.Annotations, dtwebhook.AnnotationInstallPath, dtwebhook.DefaultInstallPath)
 	installerUrl := getField(pod.Annotations, dtwebhook.AnnotationInstallerUrl, "")
 	imageAnnotation := getField(pod.Annotations, dtwebhook.AnnotationImage, "")
+	image := m.image
 
 	if flavor == "default" && technologies == "all" && installerUrl == "" {
 		if oa.Spec.Image != "" {
-			m.image = oa.Spec.Image
+			image = oa.Spec.Image
 		}
 		if imageAnnotation != "" {
-			m.image = imageAnnotation
+			image = imageAnnotation
 		}
 	}
 
@@ -143,14 +139,13 @@ func (m *podInjector) Handle(ctx context.Context, req admission.Request) admissi
 		sc = pod.Spec.Containers[0].SecurityContext.DeepCopy()
 	}
 
-	imgPullSecret := m.GetImagePullSecret(ctx, oa)
-	if imgPullSecret.Name != "" {
-		pod.Spec.ImagePullSecrets = append(pod.Spec.ImagePullSecrets, imgPullSecret)
+	if oa.Spec.CreateDynatracePullSecret == nil || *oa.Spec.CreateDynatracePullSecret == true {
+		pod.Spec.ImagePullSecrets = append(pod.Spec.ImagePullSecrets, corev1.LocalObjectReference{Name: dtwebhook.PullSecretName})
 	}
 
 	pod.Spec.InitContainers = append(pod.Spec.InitContainers, corev1.Container{
 		Name:    "install-oneagent",
-		Image:   m.image,
+		Image:   image,
 		Command: []string{"/usr/bin/env"},
 		Args:    []string{"bash", "/mnt/config/init.sh"},
 		Env: []corev1.EnvVar{
@@ -206,37 +201,6 @@ func (m *podInjector) Handle(ctx context.Context, req admission.Request) admissi
 	}
 
 	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledPod)
-}
-
-func (m *podInjector) GetImagePullSecret(ctx context.Context, oa dynatracev1alpha1.OneAgentAPM) corev1.LocalObjectReference {
-	if oa.Spec.ImagePullSecret != "" {
-		return corev1.LocalObjectReference{Name: oa.Spec.ImagePullSecret}
-	}
-
-	dtc, err := utils.BuildDynatraceClient(m.client, &oa)
-	if err != nil {
-		return corev1.LocalObjectReference{}
-	}
-
-	ci, err := dtc.GetConnectionInfo()
-	if err != nil {
-		return corev1.LocalObjectReference{}
-	}
-
-	r, _ := regexp.Compile("(.*?)\\//linux")
-	registry := r.FindString(oa.Spec.Image)
-	auth := fmt.Sprintf("%s:%s", ci.TenantUUID, utils.DynatracePaasToken)
-	auth = b64.StdEncoding.EncodeToString([]byte(auth))
-	dockercfg := fmt.Sprintf("{\"auths\":{\"%s\":{\"username\":\"%s\",\"password\":\"%s\",\"auth\":\"%s\"}}}", registry, ci.TenantUUID, utils.DynatracePaasToken, auth)
-	dockercfg = b64.StdEncoding.EncodeToString([]byte(dockercfg))
-
-	m.client.Create(ctx, &corev1.Secret{
-		Type:       corev1.SecretTypeDockerConfigJson,
-		Data:       map[string][]byte{".dockerconfigjson": []byte(dockercfg)},
-		ObjectMeta: metav1.ObjectMeta{Name: oa.Name, Namespace: m.namespace},
-	})
-
-	return corev1.LocalObjectReference{Name: oa.Name}
 }
 
 // InjectClient injects the client

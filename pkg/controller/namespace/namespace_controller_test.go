@@ -7,7 +7,10 @@ import (
 
 	"github.com/Dynatrace/dynatrace-oneagent-operator/pkg/apis"
 	dynatracev1alpha1 "github.com/Dynatrace/dynatrace-oneagent-operator/pkg/apis/dynatrace/v1alpha1"
+	"github.com/Dynatrace/dynatrace-oneagent-operator/pkg/controller/utils"
+	"github.com/Dynatrace/dynatrace-oneagent-operator/pkg/dtclient"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,11 +48,24 @@ func TestReconcileNamespace(t *testing.T) {
 		},
 	)
 
+	dtClient := &dtclient.MockDynatraceClient{}
+	defer mock.AssertExpectationsForObjects(t, dtClient)
+	dtClient.On("GetConnectionInfo").Return(dtclient.ConnectionInfo{
+		TenantUUID: "test-url",
+		CommunicationHosts: []dtclient.CommunicationHost{{
+			Protocol: "https",
+			Host:     "test-url",
+			Port:     8080,
+		},
+		}},
+		nil)
+
 	r := ReconcileNamespaces{
-		client:    c,
-		apiReader: c,
-		logger:    logf.ZapLoggerTo(os.Stdout, true),
-		namespace: "dynatrace",
+		client:              c,
+		dynatraceClientFunc: utils.StaticDynatraceClient(dtClient),
+		apiReader:           c,
+		logger:              logf.ZapLoggerTo(os.Stdout, true),
+		namespace:           "dynatrace",
 	}
 
 	_, err := r.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-namespace"}})

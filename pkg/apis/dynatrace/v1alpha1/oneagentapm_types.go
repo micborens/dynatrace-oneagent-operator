@@ -25,11 +25,17 @@ import (
 type OneAgentAPMSpec struct {
 	BaseOneAgentSpec `json:",inline"`
 
-	// OneAgent image
+	// OneAgent image for code modules
 	// +operator-sdk:gen-csv:customresourcedefinitions.specDescriptors=true
 	// +operator-sdk:gen-csv:customresourcedefinitions.specDescriptors.displayName="Image"
 	// +operator-sdk:gen-csv:customresourcedefinitions.specDescriptors.x-descriptors="urn:alm:descriptor:com.tectonic.ui:advanced,urn:alm:descriptor:com.tectonic.ui:text"
 	Image string `json:"image,omitempty"`
+
+	// If set it will automatically create a PullSecret for your Dynatrace environment so you can grab the OneAgent image from there
+	// +operator-sdk:gen-csv:customresourcedefinitions.specDescriptors=true
+	// +operator-sdk:gen-csv:customresourcedefinitions.specDescriptors.displayName="Create Dynatrace PullSecret"
+	// +operator-sdk:gen-csv:customresourcedefinitions.specDescriptors.x-descriptors="urn:alm:descriptor:io.kubernetes:Secret"
+	CreateDynatracePullSecret *bool `json:"createDynatracePullSecret,omitempty"`
 }
 
 // OneAgentAPMStatus defines the observed state of OneAgentAPM

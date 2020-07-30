@@ -48,16 +48,17 @@ spec:
                 description: Location of the Dynatrace API to connect to, including
                   your specific environment ID
                 type: string
+              createDynatracePullSecret:
+                description: If set it will automatically create a PullSecret for
+                  your Dynatrace environment so you can grab the OneAgent image from
+                  there
+                type: boolean
               enableIstio:
                 description: If enabled, Istio on the cluster will be configured automatically
                   to allow access to the Dynatrace environment
                 type: boolean
               image:
-                description: OneAgent image
-                type: string
-              imagePullSecret:
-                description: 'Optional: The pull secret to get the oneagent image
-                  from your private registry'
+                description: OneAgent image for code modules
                 type: string
               networkZone:
                 description: 'Optional: Adds the OneAgent to the given NetworkZone'
