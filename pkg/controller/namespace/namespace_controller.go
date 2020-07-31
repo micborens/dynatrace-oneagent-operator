@@ -136,6 +136,7 @@ type script struct {
 	PaaSToken  string
 	Proxy      string
 	TrustedCAs []byte
+	ClusterID  string
 }
 
 func newScript(ctx context.Context, c client.Client, oaName, ns string) (*script, error) {
@@ -146,6 +147,11 @@ func newScript(ctx context.Context, c client.Client, oaName, ns string) (*script
 
 	var tkns corev1.Secret
 	if err := c.Get(ctx, client.ObjectKey{Name: utils.GetTokensName(&apm), Namespace: ns}, &tkns); err != nil {
+		return nil, fmt.Errorf("failed to query tokens: %w", err)
+	}
+
+	var kubeSystemNS corev1.Namespace
+	if err := c.Get(ctx, client.ObjectKey{Name: "kube-system"}, &kubeSystemNS); err != nil {
 		return nil, fmt.Errorf("failed to query tokens: %w", err)
 	}
 
@@ -176,6 +182,7 @@ func newScript(ctx context.Context, c client.Client, oaName, ns string) (*script
 		PaaSToken:  string(tkns.Data[utils.DynatracePaasToken]),
 		Proxy:      proxy,
 		TrustedCAs: trustedCAs,
+		ClusterID:  string(kubeSystemNS.UID),
 	}, nil
 }
 
@@ -191,6 +198,7 @@ proxy="{{.Proxy}}"
 skip_cert_checks="{{if .OneAgent.Spec.SkipCertCheck}}true{{else}}false{{end}}"
 custom_ca="{{if .TrustedCAs}}true{{else}}false{{end}}"
 installer_url="${api_url}/v1/deployment/installer/agent/unix/paas/latest?flavor=${FLAVOR}&include=${TECHNOLOGIES}&bitness=64"
+cluster_id="{{.ClusterID}}"
 
 archive=$(mktemp)
 
@@ -235,6 +243,31 @@ rm -f "${archive}"
 
 echo "Configuring OneAgent..."
 echo -n "${INSTALLPATH}/agent/lib64/liboneagentproc.so" >> "${target_dir}/ld.so.preload"
+
+for i in {1..${CONTAINERS_COUNT}}
+do
+	container_name_var="CONTAINER_${i}_NAME"
+	container_image_var="CONTAINER_${i}_IMAGE"
+
+	container_name="${!container_name_var}"
+	container_image="${!container_image_var}"
+
+	container_conf_file="${target_dir}/container_${container_name}.conf"
+
+	echo "Writing ${container_conf_file} file..."
+	cat <<EOF >container_conf_file
+[container]
+container_name ${container_name}
+image_name ${container_image}
+k8s_fullpodname  ${DT_K8S_PODNAME}
+k8s_poduid ${DT_K8S_PODUID}
+k8s_containername ${container_name}
+k8s_basepodname ${DT_K8S_BASEPODNAME}
+k8s_namespace ${DT_K8S_NAMESPACE}
+k8s_node_name ${DT_K8S_NODE_NAME}
+k8s_cluster_id ${cluster_id}
+EOF
+done
 `))
 
 func (s *script) generate() (map[string][]byte, error) {
