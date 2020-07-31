@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"regexp"
+	"strings"
 	"text/template"
 	"time"
 
@@ -120,13 +120,15 @@ func (r *ReconcileNamespaces) Reconcile(request reconcile.Request) (reconcile.Re
 	}
 
 	if apm.Spec.CreateDynatracePullSecret == nil || *apm.Spec.CreateDynatracePullSecret == true {
-		pullSecretData, err := r.GeneratePullSecretData(apm, tkns)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-		err = r.CreateOrUpdateSecretIfNotExists(ctx, webhook.PullSecretName, targetNS, pullSecretData, corev1.SecretTypeDockerConfigJson, log)
-		if err != nil {
-			return reconcile.Result{}, err
+		if apm.Spec.Image == "" && apm.Spec.APIURL != "" {
+			pullSecretData, err := r.GeneratePullSecretData(apm, tkns)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			err = r.CreateOrUpdateSecretIfNotExists(ctx, webhook.PullSecretName, targetNS, pullSecretData, corev1.SecretTypeDockerConfigJson, log)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
 		}
 	}
 
@@ -145,8 +147,7 @@ func (r *ReconcileNamespaces) GeneratePullSecretData(apm dynatracev1alpha1.OneAg
 		return nil, err
 	}
 
-	regex, _ := regexp.Compile("(.*?)\\//linux")
-	registry := regex.FindString(apm.Spec.Image)
+	registry := strings.Split(apm.Spec.Image, "/")[0]
 	auth := fmt.Sprintf("%s:%s", ci.TenantUUID, string(tkns.Data[utils.DynatracePaasToken]))
 	auth = b64.StdEncoding.EncodeToString([]byte(auth))
 	dockercfg := fmt.Sprintf("{\"auths\":{\"%s\":{\"username\":\"%s\",\"password\":\"%s\",\"auth\":\"%s\"}}}", registry, ci.TenantUUID, string(tkns.Data[utils.DynatracePaasToken]), auth)

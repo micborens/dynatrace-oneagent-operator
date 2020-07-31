@@ -43,8 +43,8 @@ func (dc *dynatraceClient) GetConnectionInfo() (ConnectionInfo, error) {
 
 func (dc *dynatraceClient) readResponseForConnectionInfo(response []byte) (ConnectionInfo, error) {
 	type jsonResponse struct {
-		tenantUUID             string
-		CommunicationEndpoints []string
+		TenantUUID             string   `json:"tenantUUID"`
+		CommunicationEndpoints []string `json:"communicationEndpoints"`
 	}
 
 	resp := jsonResponse{}
@@ -54,7 +54,7 @@ func (dc *dynatraceClient) readResponseForConnectionInfo(response []byte) (Conne
 		return ConnectionInfo{}, err
 	}
 
-	t := resp.tenantUUID
+	t := resp.TenantUUID
 	ch := make([]CommunicationHost, 0, len(resp.CommunicationEndpoints))
 
 	for _, s := range resp.CommunicationEndpoints {

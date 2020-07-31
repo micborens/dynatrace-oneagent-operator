@@ -34,6 +34,7 @@ func TestReconcileNamespace(t *testing.T) {
 				BaseOneAgentSpec: dynatracev1alpha1.BaseOneAgentSpec{
 					APIURL: "https://test-url/api",
 				},
+				Image: "test-url/linux/codemodules",
 			},
 		},
 		&corev1.Namespace{
