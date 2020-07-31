@@ -120,15 +120,13 @@ func (r *ReconcileNamespaces) Reconcile(request reconcile.Request) (reconcile.Re
 	}
 
 	if apm.Spec.CreateDynatracePullSecret == nil || *apm.Spec.CreateDynatracePullSecret == true {
-		if apm.Spec.Image == "" && apm.Spec.APIURL != "" {
-			pullSecretData, err := r.GeneratePullSecretData(apm, tkns)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-			err = r.CreateOrUpdateSecretIfNotExists(ctx, webhook.PullSecretName, targetNS, pullSecretData, corev1.SecretTypeDockerConfigJson, log)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
+		pullSecretData, err := r.GeneratePullSecretData(apm, tkns)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		err = r.CreateOrUpdateSecretIfNotExists(ctx, webhook.PullSecretName, targetNS, pullSecretData, corev1.SecretTypeDockerConfigJson, log)
+		if err != nil {
+			return reconcile.Result{}, err
 		}
 	}
 
